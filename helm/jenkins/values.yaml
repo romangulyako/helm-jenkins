@@ -1,0 +1,92 @@
+namespace: ci-cd
+
+image:
+  repository: jfrog.it-academy.by/public/jenkins-ci
+  tag: romangulyako
+  pullPolicy: IfNotPresent
+
+resources:
+  requests:
+    cpu: "2"
+    memory: "2Gi"
+  limits:
+    cpu: "3"
+    memory: "3Gi"
+
+replicaCount: 1
+
+admin:
+  user: admin
+  password: "password"
+
+javaOpts: "-Djenkins.install.runSetupWizard=false"
+cascConfigPath: "/var/jenkins_home/casc_configs/jenkins.yaml"
+
+service:
+  name: jenkins
+  type: ClusterIP
+  ports:
+    http: 8080
+    jnlp: 50000
+
+rbac:
+  enabled: true
+  clusterRoleBindingName: jenkins
+  serviceAccountName: default
+  clusterRoleName: cluster-admin
+
+nfs:
+  enabled: true
+  server: 192.168.37.105
+  path: /mnt/IT-Academy/nfs-data/sa2-33-25/romangulyako/jenkins
+
+ingress:
+  enabled: true
+  className: nginx
+  host: jenkins.k8s-5.sa
+  path: /
+  pathType: Prefix
+  annotations: {}
+
+config:
+  basicSecurityGroovy: |
+    #!groovy
+    import jenkins.model.*
+    import hudson.security.*
+    def instance = Jenkins.getInstance()
+    println "--> creating local user 'admin'"
+    def password = System.getenv("PASS")
+    def hudsonRealm = new HudsonPrivateSecurityRealm(false)
+    hudsonRealm.createAccount('admin', password)
+    instance.setSecurityRealm(hudsonRealm)
+    def strategy = new FullControlOnceLoggedInAuthorizationStrategy()
+    strategy.setAllowAnonymousRead(true)
+    instance.setAuthorizationStrategy(strategy)
+    instance.save()
+  jenkinsYaml: |
+    jenkins:
+      numExecutors: 2
+      clouds:
+      - kubernetes:
+          containerCapStr: "10"
+          maxRequestsPerHostStr: "32"
+          jenkinsUrl: "http://jenkins:8080"
+          name: "kubernetes"
+          namespace: "ci-cd"
+          skipTlsVerify: true
+    credentials:
+      system:
+        domainCredentials:
+        - credentials:
+          - usernamePassword:
+              description: "Githubuser"
+              id: "some_randome"
+              password: "XXXXXXXXXXX"
+              scope: GLOBAL
+              username: "git_hub_user"
+    unclassified:
+      location:
+        adminAddress: "romangulyako@gmail.com"
+        url: "http://jenkins.k8s-5.sa/"
+      shell:
+        shell: "/bin/bash"
